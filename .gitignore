@@ -1,0 +1,7 @@
+# .gitignore (프로젝트 루트에 위치)
+venv/
+__pycache__/
+*.pt
+uploads/
+*.log
+*.pyc
