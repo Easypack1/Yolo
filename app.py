@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Header, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from ultralytics import YOLO
 import shutil
@@ -7,54 +7,55 @@ import mysql.connector
 
 app = FastAPI()
 
-# YOLO 모델 로드
-model = YOLO('yolov8n.pt')
+model = YOLO("yolov8n.pt")
 
-# DB 연결 함수
 def get_db_connection():
     return mysql.connector.connect(
         host="localhost",
         user="root",
-        password="비밀번호",  # 🔄 여기에 본인 비밀번호
+        password="여기에_비밀번호",  # 너의 비밀번호로 변경!
         database="travel"
     )
 
-# 규정 불러오기
 def get_regulations(country: str, airline: str) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
     cursor.execute("""
-        SELECT item, category FROM regulations
-        WHERE country=%s AND airline=%s
-    """, (country, airline))
+        SELECT item, category, explanation FROM regulations
+        WHERE country = %s AND airline = %s
+    """, (country.strip(), airline.strip()))
 
     results = cursor.fetchall()
     cursor.close()
     conn.close()
 
-    # {'knife': '반입 불가', 'bottle': '기내 반입 가능' ...}
-    return {row['item'].lower(): row['category'] for row in results}
-
+    return {
+        row['item'].lower().strip(): {
+            "category": row['category'],
+            "explanation": row['explanation']
+        } for row in results
+    }
 
 @app.post("/predict")
 async def predict(
     file: UploadFile = File(...),
-    x_country: str = Header(...),
-    x_airline: str = Header(...)
+    country: str = Form(...),
+    airline: str = Form(...)
 ):
     # 규정 불러오기
     try:
-        regulations = get_regulations(x_country, x_airline)
+        regulations = get_regulations(country, airline)
+        print("✅ 불러온 규정 목록:", regulations)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"규정 불러오기 실패: {e}")
+        return JSONResponse(status_code=500, content={"error": f"규정 불러오기 실패: {e}"})
 
     # 이미지 저장
     image_path = f"temp_{file.filename}"
     with open(image_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # YOLO 예측
+    # YOLO 감지
     results = model(image_path)
 
     detections = []
@@ -63,15 +64,22 @@ async def predict(
         for box in boxes:
             cls_id = int(box.cls[0])
             conf = float(box.conf[0])
-            name = result.names[cls_id]
+            label = result.names[cls_id].lower().strip()
 
-            category = regulations.get(name.lower(), "분류 불가")
+            reg_info = regulations.get(label, {
+                "category": "분류 불가",
+                "explanation": "해당 품목에 대한 규정이 없습니다."
+            })
+
+            print("▶ 감지된 label:", label)
+            print("▶ 규정 매칭 결과:", reg_info)
+
             detections.append({
-                "label": name,
+                "label": label,
                 "confidence": round(conf, 2),
-                "category": category
+                "category": reg_info.get("category", "분류 불가"),
+                "description": reg_info.get("explanation", "설명 없음")
             })
 
     os.remove(image_path)
-
     return JSONResponse(content={"detections": detections})
