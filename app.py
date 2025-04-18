@@ -4,19 +4,23 @@ from ultralytics import YOLO
 import shutil
 import os
 import mysql.connector
+import uuid  # ✅ 랜덤 파일명 생성을 위한 모듈
 
 app = FastAPI()
 
+# YOLO 모델 로드
 model = YOLO("yolov8n.pt")
 
+# MySQL 연결
 def get_db_connection():
     return mysql.connector.connect(
         host="localhost",
         user="root",
-        password="020712",  # 너의 비밀번호로 변경!
+        password="020712",  # 비밀번호 정확히 입력
         database="travel"
     )
 
+# 규정 불러오기
 def get_regulations(country: str, airline: str) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -50,13 +54,20 @@ async def predict(
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"규정 불러오기 실패: {e}"})
 
+    # 고유한 파일명 생성 (빈 파일명 대비)
+    extension = os.path.splitext(file.filename)[-1] or ".jpg"
+    filename = f"{uuid.uuid4().hex}{extension}"
+    image_path = f"temp_{filename}"
+
     # 이미지 저장
-    image_path = f"temp_{file.filename}"
     with open(image_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     # YOLO 감지
-    results = model(image_path)
+    try:
+        results = model(image_path)
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"YOLO 감지 실패: {e}"})
 
     detections = []
     for result in results:
@@ -81,5 +92,7 @@ async def predict(
                 "description": reg_info.get("explanation", "설명 없음")
             })
 
+    # 임시 파일 삭제
     os.remove(image_path)
+
     return JSONResponse(content={"detections": detections})
