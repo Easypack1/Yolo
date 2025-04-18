@@ -13,7 +13,7 @@ def get_db_connection():
     return mysql.connector.connect(
         host="localhost",
         user="root",
-        password="여기에_비밀번호",  # 너의 비밀번호로 변경!
+        password="020712",  # 너의 비밀번호로 변경!
         database="travel"
     )
 
