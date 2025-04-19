@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Header
 from fastapi.responses import JSONResponse
 from ultralytics import YOLO
 import shutil
@@ -44,12 +44,12 @@ def get_regulations(country: str, airline: str) -> dict:
 @app.post("/predict")
 async def predict(
     file: UploadFile = File(...),
-    country: str = Form(...),
-    airline: str = Form(...)
+    x_country: str = Header(...),
+    x_airline: str = Header(...)
 ):
     # 규정 불러오기
     try:
-        regulations = get_regulations(country, airline)
+        regulations = get_regulations(x_country, x_airline)
         print("✅ 불러온 규정 목록:", regulations)
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"규정 불러오기 실패: {e}"})
