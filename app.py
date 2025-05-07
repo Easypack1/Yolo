@@ -11,13 +11,13 @@ app = FastAPI()
 # YOLO 모델 로드
 model = YOLO("yolov8n.pt")
 
-# MySQL 연결
+# RDS에 연결하기 위한 DB 연결 함수
 def get_db_connection():
     return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="020712",  # 비밀번호 정확히 입력
-        database="travel"
+        host="easypackdb.ctaky8mgwxtr.ap-southeast-2.rds.amazonaws.com",  # RDS 엔드포인트
+        user="admin",  # RDS 사용자명
+        password="joon020712",  # RDS 비밀번호
+        database="travel"  # 사용할 DB 이름
     )
 
 # 규정 불러오기
